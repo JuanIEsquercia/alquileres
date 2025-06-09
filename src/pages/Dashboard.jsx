@@ -25,28 +25,35 @@ function Dashboard() {
     try {
       setLoading(true)
 
-      // Obtener estadísticas optimizadas - consultas mínimas
+      // Obtener estadísticas con lógica de liberación automática
+      const today = new Date().toISOString().split('T')[0]
+      const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      
       const [
         { data: estadisticasBasicas, error: statsError },
-        { data: alquileresVencimientos, error: vencError }
+        { data: alquileresVencimientos, error: vencError },
+        { data: propiedadesLibres, error: propError }
       ] = await Promise.all([
-        // Una sola consulta para conteos básicos
+        // Estadísticas con lógica actualizada
         supabase.rpc('get_estadisticas_dashboard'),
-        // Solo alquileres próximos a vencer para mostrar
+        // Alquileres por vencer (activos y no vencidos)
         supabase.from('alquileres').select(`
           id, precio, expensas, luz, agua, otros_importes, 
           fecha_finalizacion,
           propiedades!inner(nombre)
         `).eq('activo', true)
-        .gte('fecha_finalizacion', new Date().toISOString().split('T')[0])
-        .lte('fecha_finalizacion', new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
-        .limit(10)
+        .gte('fecha_finalizacion', today)
+        .lte('fecha_finalizacion', thirtyDaysFromNow)
+        .limit(10),
+        // Propiedades realmente disponibles
+        supabase.from('vista_propiedades_realmente_disponibles').select('id, nombre, direccion').limit(5)
       ])
 
       if (statsError) throw statsError
       if (vencError) throw vencError
+      if (propError) throw propError
 
-      // Usar estadísticas calculadas por la función de base de datos
+      // Usar estadísticas con lógica de liberación automática
       const stats = estadisticasBasicas || {
         total_propiedades: 0,
         propiedades_ocupadas: 0,
@@ -58,18 +65,18 @@ function Dashboard() {
 
       setStats({
         totalPropiedades: stats.total_propiedades,
-        propiedadesDisponibles: stats.total_propiedades - stats.propiedades_ocupadas,
+        propiedadesDisponibles: stats.total_propiedades - stats.propiedades_ocupadas, // Ahora considera fechas!
         totalInquilinos: stats.total_inquilinos,
-        alquileresActivos: stats.total_alquileres_activos,
-        ingresosMensuales: stats.ingresos_mensual,
+        alquileresActivos: stats.total_alquileres_activos, // Solo no vencidos
+        ingresosMensuales: stats.ingresos_mensual, // Solo de contratos realmente activos
         alquileresPorVencer: stats.alquileres_por_vencer
       })
 
       // Formatear alquileres por vencer para mostrar
       const alquileresFormateados = (alquileresVencimientos || []).map(a => {
         const vencimiento = new Date(a.fecha_finalizacion)
-        const today = new Date()
-        const diffDays = Math.ceil((vencimiento - today) / (1000 * 60 * 60 * 24))
+        const todayDate = new Date()
+        const diffDays = Math.ceil((vencimiento - todayDate) / (1000 * 60 * 60 * 24))
         
         return {
           propiedad: a.propiedades.nombre,
@@ -80,8 +87,15 @@ function Dashboard() {
         }
       })
 
+      // Propiedades realmente disponibles (liberadas automáticamente)
+      const propiedadesDisponiblesFormateadas = (propiedadesLibres || []).map(p => ({
+        nombre: p.nombre,
+        direccion: p.direccion,
+        precio: 0 // Se puede agregar precio sugerido después
+      }))
+
       setAlquileresPorVencer(alquileresFormateados)
-      setPropiedadesDisponibles([]) // Simplificado - se puede agregar después si es necesario
+      setPropiedadesDisponibles(propiedadesDisponiblesFormateadas)
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error.message)
@@ -134,11 +148,11 @@ function Dashboard() {
       subtitle: 'En cartera'
     },
     {
-      title: 'Propiedades Ocupadas',
+      title: 'Propiedades Disponibles',
       value: stats.propiedadesDisponibles,
       icon: FileText,
       color: 'success',
-      subtitle: 'Alquiladas'
+      subtitle: 'Libres para alquilar'
     },
     {
       title: 'Inquilinos Activos',
@@ -217,9 +231,17 @@ function Dashboard() {
                     <AlertTriangle className="me-2 text-danger" size={20} />
                     Próximos Vencimientos
                   </h5>
-                  <span className="badge bg-primary rounded-pill">
-                    {alquileresPorVencer.length} pendientes
-                  </span>
+                  <div className="d-flex gap-2 align-items-center">
+                    <button 
+                      onClick={() => navigate('/contratos-vencidos')}
+                      className="btn btn-outline-danger btn-sm"
+                    >
+                      Contratos Vencidos
+                    </button>
+                    <span className="badge bg-primary rounded-pill">
+                      {alquileresPorVencer.length} pendientes
+                    </span>
+                  </div>
                 </div>
               </div>
               <div className="card-body">
@@ -256,7 +278,10 @@ function Dashboard() {
                   ))}
                 </div>
                 <div className="text-center mt-3">
-                  <button className="btn btn-outline-primary btn-custom">
+                  <button 
+                    onClick={() => navigate('/alquileres')}
+                    className="btn btn-outline-primary btn-custom"
+                  >
                     Ver todos los vencimientos
                   </button>
                 </div>
@@ -306,7 +331,10 @@ function Dashboard() {
                   ))}
                 </div>
                 <div className="text-center mt-3">
-                  <button className="btn btn-outline-success btn-custom">
+                  <button 
+                    onClick={() => navigate('/propiedades')}
+                    className="btn btn-outline-success btn-custom"
+                  >
                     Ver todas las propiedades
                   </button>
                 </div>
@@ -323,25 +351,38 @@ function Dashboard() {
                 <h5 className="card-title mb-3">🚀 Acciones Rápidas</h5>
                 <div className="row g-3">
                   <div className="col-lg-3 col-md-6 col-12">
-                    <button className="btn btn-outline-primary btn-custom w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3">
+                    <button 
+                      onClick={() => navigate('/inquilinos')}
+                      className="btn btn-outline-primary btn-custom w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3"
+                    >
                       <Users size={24} className="mb-2" />
                       <span>Nuevo Inquilino</span>
                     </button>
                   </div>
                   <div className="col-lg-3 col-md-6 col-12">
-                    <button className="btn btn-outline-success btn-custom w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3">
+                    <button 
+                      onClick={() => navigate('/propiedades')}
+                      className="btn btn-outline-success btn-custom w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3"
+                    >
                       <Home size={24} className="mb-2" />
                       <span>Nueva Propiedad</span>
                     </button>
                   </div>
                   <div className="col-lg-3 col-md-6 col-12">
-                    <button className="btn btn-outline-info btn-custom w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3">
+                    <button 
+                      onClick={() => navigate('/alquileres')}
+                      className="btn btn-outline-info btn-custom w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3"
+                    >
                       <TrendingUp size={24} className="mb-2" />
                       <span>Nuevo Alquiler</span>
                     </button>
                   </div>
                   <div className="col-lg-3 col-md-6 col-12">
-                    <button className="btn btn-outline-warning btn-custom w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3">
+                    <button 
+                      onClick={() => navigate('/alquileres')}
+                      className="btn btn-outline-warning btn-custom w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3"
+                      title="Funcionalidad en desarrollo"
+                    >
                       <DollarSign size={24} className="mb-2" />
                       <span>Registrar Pago</span>
                     </button>

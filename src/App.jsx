@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard'
 import Inquilinos from './pages/Inquilinos'
 import Propiedades from './pages/Propiedades'
 import Alquileres from './pages/Alquileres'
+import ContratosVencidos from './pages/ContratosVencidos'
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
             <Route path="/inquilinos" element={<Inquilinos />} />
             <Route path="/propiedades" element={<Propiedades />} />
             <Route path="/alquileres" element={<Alquileres />} />
+            <Route path="/contratos-vencidos" element={<ContratosVencidos />} />
           </Routes>
         </main>
       </div>
