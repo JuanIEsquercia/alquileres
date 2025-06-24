@@ -630,7 +630,7 @@ function Alquileres() {
                             onChange={(e) => setFormData({...formData, precio: e.target.value})}
                             placeholder="450000"
                             min="0"
-                            step="1000"
+                            step="0.01"
                           />
                           {errors.precio && (
                             <div className="invalid-feedback">{errors.precio}</div>
@@ -669,7 +669,7 @@ function Alquileres() {
                             onChange={(e) => setFormData({...formData, expensas: e.target.value})}
                             placeholder="45000"
                             min="0"
-                            step="1000"
+                            step="0.01"
                           />
                         </div>
                       </div>
@@ -685,7 +685,7 @@ function Alquileres() {
                             onChange={(e) => setFormData({...formData, luz: e.target.value})}
                             placeholder="0"
                             min="0"
-                            step="1000"
+                            step="0.01"
                           />
                         </div>
                       </div>
@@ -703,7 +703,7 @@ function Alquileres() {
                             onChange={(e) => setFormData({...formData, agua: e.target.value})}
                             placeholder="0"
                             min="0"
-                            step="1000"
+                            step="0.01"
                           />
                         </div>
                       </div>
@@ -719,7 +719,7 @@ function Alquileres() {
                             onChange={(e) => setFormData({...formData, otros_importes: e.target.value})}
                             placeholder="0"
                             min="0"
-                            step="1000"
+                            step="0.01"
                           />
                         </div>
                       </div>
