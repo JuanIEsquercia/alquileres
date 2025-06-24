@@ -21,14 +21,33 @@ function Propiedades() {
   const fetchPropiedades = async () => {
     try {
       setLoading(true)
-      const { data, error } = await supabase
+      
+      // Obtener propiedades con información de alquileres activos no vencidos
+      const { data: propiedadesData, error: propError } = await supabase
         .from('propiedades')
         .select('id, nombre, direccion, created_at')
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (propError) throw propError
       
-      setPropiedades(data || [])
+      // Obtener alquileres realmente activos (activos y no vencidos)
+      const { data: alquileresActivos, error: alqError } = await supabase
+        .from('alquileres')
+        .select('propiedad_id')
+        .eq('activo', true)
+        .gte('fecha_finalizacion', new Date().toISOString().split('T')[0])
+
+      if (alqError) throw alqError
+      
+      // Marcar estado basado en lógica de liberación automática
+      const propiedadesOcupadas = new Set((alquileresActivos || []).map(a => a.propiedad_id))
+      
+      const propiedadesConEstado = (propiedadesData || []).map(prop => ({
+        ...prop,
+        ocupada: propiedadesOcupadas.has(prop.id)
+      }))
+      
+      setPropiedades(propiedadesConEstado)
     } catch (error) {
       console.error('Error fetching propiedades:', error.message)
       alert('Error al cargar propiedades: ' + error.message)

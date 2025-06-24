@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Users, Building, FileText } from 'lucide-react'
+import { Home, Users, Building, FileText, Receipt } from 'lucide-react'
 
 function Navbar() {
   const navItems = [
@@ -7,6 +7,7 @@ function Navbar() {
     { to: '/inquilinos', icon: Users, label: 'Inquilinos' },
     { to: '/propiedades', icon: Building, label: 'Propiedades' },
     { to: '/alquileres', icon: FileText, label: 'Alquileres' },
+    { to: '/liquidaciones', icon: Receipt, label: 'Liquidaciones' },
   ]
 
   return (

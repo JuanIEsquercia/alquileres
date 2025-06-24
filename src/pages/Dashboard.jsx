@@ -15,6 +15,7 @@ function Dashboard() {
   })
   const [alquileresPorVencer, setAlquileresPorVencer] = useState([])
   const [propiedadesDisponibles, setPropiedadesDisponibles] = useState([])
+  const [actualizacionesPendientes, setActualizacionesPendientes] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -32,7 +33,8 @@ function Dashboard() {
       const [
         { data: estadisticasBasicas, error: statsError },
         { data: alquileresVencimientos, error: vencError },
-        { data: propiedadesLibres, error: propError }
+        { data: propiedadesLibres, error: propError },
+        { data: proximasActualizaciones, error: actualizacionesError }
       ] = await Promise.all([
         // Estadísticas con lógica actualizada
         supabase.rpc('get_estadisticas_dashboard'),
@@ -46,12 +48,15 @@ function Dashboard() {
         .lte('fecha_finalizacion', thirtyDaysFromNow)
         .limit(10),
         // Propiedades realmente disponibles
-        supabase.from('vista_propiedades_realmente_disponibles').select('id, nombre, direccion').limit(5)
+        supabase.from('vista_propiedades_realmente_disponibles').select('id, nombre, direccion').limit(5),
+        // Próximas actualizaciones de contratos (cada 6 meses)
+        supabase.rpc('get_proximas_actualizaciones', { meses_adelante: 2 }).limit(5)
       ])
 
       if (statsError) throw statsError
       if (vencError) throw vencError
       if (propError) throw propError
+      if (actualizacionesError) console.warn('Error cargando actualizaciones:', actualizacionesError)
 
       // Usar estadísticas con lógica de liberación automática
       const stats = estadisticasBasicas || {
@@ -94,8 +99,20 @@ function Dashboard() {
         precio: 0 // Se puede agregar precio sugerido después
       }))
 
+      // Próximas actualizaciones de contratos (cada 6 meses)
+      const actualizacionesFormateadas = (proximasActualizaciones || []).map(a => ({
+        alquiler_id: a.alquiler_id,
+        fecha_actualizacion: a.fecha_proxima_actualizacion,
+        inquilino: a.inquilino_nombre,
+        propiedad: a.propiedad_direccion,
+        precio_actual: a.precio_actual,
+        meses_desde_inicio: a.meses_desde_inicio,
+        dias_restantes: Math.ceil((new Date(a.fecha_proxima_actualizacion) - new Date()) / (1000 * 60 * 60 * 24))
+      }))
+
       setAlquileresPorVencer(alquileresFormateados)
       setPropiedadesDisponibles(propiedadesDisponiblesFormateadas)
+      setActualizacionesPendientes(actualizacionesFormateadas)
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error.message)
@@ -221,7 +238,7 @@ function Dashboard() {
         </div>
 
         {/* Content Row */}
-        <div className="row g-4">
+        <div className="row g-4 mb-4">
           {/* Próximos Vencimientos */}
           <div className="col-lg-8 col-12">
             <div className="card card-custom h-100">
@@ -343,8 +360,78 @@ function Dashboard() {
           </div>
         </div>
 
+        {/* Actualizaciones de Contratos */}
+        {actualizacionesPendientes.length > 0 && (
+          <div className="row g-4 mb-4">
+            <div className="col-12">
+              <div className="card card-custom">
+                <div className="card-header bg-transparent border-0 pb-0">
+                  <div className="d-flex justify-content-between align-items-center">
+                    <h5 className="card-title mb-0 d-flex align-items-center">
+                      <TrendingUp className="me-2 text-warning" size={20} />
+                      Actualizaciones de Contratos Pendientes
+                    </h5>
+                    <span className="badge bg-warning rounded-pill text-dark">
+                      {actualizacionesPendientes.length} contratos
+                    </span>
+                  </div>
+                  <p className="text-muted small mb-0 mt-2">
+                    Contratos que requieren actualización de precios cada 6 meses
+                  </p>
+                </div>
+                <div className="card-body">
+                  <div className="row g-3">
+                    {actualizacionesPendientes.map((actualizacion, index) => (
+                      <div key={actualizacion.alquiler_id} className="col-lg-6 col-12">
+                        <div className="alert alert-warning alert-custom mb-0" style={{ borderLeft: '4px solid #ffc107' }}>
+                          <div className="d-flex justify-content-between align-items-start">
+                            <div className="flex-grow-1">
+                              <h6 className="alert-heading mb-1">{actualizacion.propiedad}</h6>
+                              <p className="mb-1">
+                                <Users size={14} className="me-1" />
+                                {actualizacion.inquilino}
+                              </p>
+                              <small className="text-muted">
+                                <Calendar size={14} className="me-1" />
+                                Actualizar: {formatDate(actualizacion.fecha_actualizacion)}
+                                <span className="ms-2">
+                                  ({actualizacion.meses_desde_inicio} meses de contrato)
+                                </span>
+                              </small>
+                            </div>
+                            <div className="text-end">
+                              <div className="h6 mb-0 fw-bold text-warning">
+                                {formatCurrency(actualizacion.precio_actual)}
+                              </div>
+                              <small className="badge bg-warning text-dark">
+                                {actualizacion.dias_restantes > 0 
+                                  ? `En ${actualizacion.dias_restantes} días`
+                                  : 'Vencida'
+                                }
+                              </small>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-center mt-3">
+                    <button 
+                      onClick={() => navigate('/actualizaciones')}
+                      className="btn btn-outline-warning btn-custom"
+                    >
+                      <TrendingUp className="me-2" size={16} />
+                      Gestionar Actualizaciones
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Quick Actions */}
-        <div className="row mt-4">
+        <div className="row">
           <div className="col-12">
             <div className="card card-custom">
               <div className="card-body">
